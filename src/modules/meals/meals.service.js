@@ -49,4 +49,52 @@ async function checkMeal({ idcompany, idevent, idacreditation, mealType, idaccou
   return { mealType, scannedAt };
 }
 
-module.exports = { getTodayStatus, checkMeal };
+async function getHistory({ idcompany, idevent, docnumber, meal_type, date, limit = 100 }) {
+  const conditions = ["mr.idcompany = ?", "mr.idevent = ?"];
+  const params     = [idcompany, idevent];
+
+  if (docnumber) { conditions.push("p.docnumber LIKE ?");  params.push(`%${docnumber}%`); }
+  if (meal_type) { conditions.push("mr.meal_type = ?");    params.push(meal_type); }
+  if (date)      { conditions.push("mr.meal_date = ?");    params.push(date); }
+
+  params.push(limit);
+
+  const [rows] = await pool.query(
+    `SELECT
+       mr.idacreditation, mr.meal_type, mr.meal_date, mr.scanned_at,
+       p.firstname, p.lastname, p.surname,
+       p.docnumber, p.doctype,
+       docm.name_es AS doctype_name,
+       rolm.name_es AS role_name,
+       a.tregister
+     FROM meal_records mr
+     INNER JOIN accreditation a
+       ON a.idcompany = mr.idcompany AND a.idevent = mr.idevent
+      AND a.idacreditation = mr.idacreditation
+     INNER JOIN person p
+       ON p.idcompany = a.idcompany AND p.idperson = a.idperson
+     LEFT JOIN master_details docm
+       ON docm.idcompany = a.idcompany AND docm.idmaster = 4 AND docm.iddetails = p.doctype
+     LEFT JOIN master_details rolm
+       ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY mr.scanned_at DESC
+     LIMIT ?`,
+    params
+  );
+
+  return rows.map((r) => ({
+    idacreditation: r.idacreditation,
+    meal_type:      r.meal_type,
+    meal_date:      r.meal_date,
+    scanned_at:     r.scanned_at,
+    person: {
+      fullname:    [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
+      docnumber:   r.docnumber,
+      doctypeName: r.doctype_name,
+    },
+    role: { code: r.tregister, name: r.role_name || r.tregister },
+  }));
+}
+
+module.exports = { getTodayStatus, checkMeal, getHistory };

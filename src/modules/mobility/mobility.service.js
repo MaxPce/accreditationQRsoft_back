@@ -45,4 +45,52 @@ async function registerLog({ idcompany, idevent, idacreditation, location, event
   return { location, event_type, scannedAt };
 }
 
-module.exports = { getLogsToday, registerLog };
+async function getHistory({ idcompany, idevent, docnumber, location, date, limit = 100 }) {
+  const conditions = ["ml.idcompany = ?", "ml.idevent = ?"];
+  const params     = [idcompany, idevent];
+
+  if (docnumber) { conditions.push("p.docnumber LIKE ?");   params.push(`%${docnumber}%`); }
+  if (location)  { conditions.push("ml.location = ?");      params.push(location); }
+  if (date)      { conditions.push("DATE(ml.scanned_at) = ?"); params.push(date); }
+
+  params.push(limit);
+
+  const [rows] = await pool.query(
+    `SELECT
+       ml.idacreditation, ml.location, ml.event_type, ml.scanned_at,
+       p.firstname, p.lastname, p.surname,
+       p.docnumber, p.doctype,
+       docm.name_es AS doctype_name,
+       rolm.name_es AS role_name,
+       a.tregister
+     FROM mobility_logs ml
+     INNER JOIN accreditation a
+       ON a.idcompany = ml.idcompany AND a.idevent = ml.idevent
+      AND a.idacreditation = ml.idacreditation
+     INNER JOIN person p
+       ON p.idcompany = a.idcompany AND p.idperson = a.idperson
+     LEFT JOIN master_details docm
+       ON docm.idcompany = a.idcompany AND docm.idmaster = 4 AND docm.iddetails = p.doctype
+     LEFT JOIN master_details rolm
+       ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY ml.scanned_at DESC
+     LIMIT ?`,
+    params
+  );
+
+  return rows.map((r) => ({
+    idacreditation: r.idacreditation,
+    location:       r.location,
+    event_type:     r.event_type,
+    scanned_at:     r.scanned_at,
+    person: {
+      fullname:    [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
+      docnumber:   r.docnumber,
+      doctypeName: r.doctype_name,
+    },
+    role: { code: r.tregister, name: r.role_name || r.tregister },
+  }));
+}
+
+module.exports = { getLogsToday, registerLog, getHistory };

@@ -6,5 +6,6 @@ const { requireAuth } = require("../../middlewares/auth.middleware");
 const router = Router();
 router.get("/lookup", requireAuth("event_selected"), controller.lookup);
 router.post("/check", requireAuth("event_selected"), controller.check);
+router.get("/history", requireAuth("event_selected"), controller.history);
 
 module.exports = router;

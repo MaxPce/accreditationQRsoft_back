@@ -51,3 +51,17 @@ exports.registerLog = asyncHandler(async (req, res) => {
 
   res.json({ ok: true, ...result });
 });
+
+exports.getHistory = asyncHandler(async (req, res) => {
+  const { docnumber, location, date } = req.query;
+  const { idcompany, idevent } = req.user;
+
+  const records = await service.getHistory({
+    idcompany,
+    idevent,
+    docnumber: docnumber || null,
+    location:  location  || null,
+    date:      date      || null,
+  });
+  res.json({ ok: true, records });
+});

@@ -55,3 +55,17 @@ exports.check = asyncHandler(async (req, res) => {
 
   res.json({ ok: true, ...result });
 });
+
+exports.history = asyncHandler(async (req, res) => {
+  const { docnumber, meal_type, date } = req.query;
+  const { idcompany, idevent } = req.user;
+
+  const records = await service.getHistory({
+    idcompany,
+    idevent,
+    docnumber: docnumber || null,
+    meal_type: meal_type || null,
+    date:      date      || null,
+  });
+  res.json({ ok: true, records });
+});
