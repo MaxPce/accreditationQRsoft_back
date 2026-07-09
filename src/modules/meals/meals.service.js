@@ -1,7 +1,11 @@
 // src/modules/meals/meals.service.js
 const pool = require("../../config/db");
 const AppError = require("../../utils/AppError");
-const accreditations = require("../accreditations/accreditations.service");
+
+function nowPeru() {
+  // Retorna string "YYYY-MM-DD HH:MM:SS" en hora Perú
+  return new Date().toLocaleString("sv-SE", { timeZone: "America/Lima" }).replace("T", " ");
+}
 
 async function getTodayStatus({ idcompany, idevent, idacreditation }) {
   const [rows] = await pool.query(
@@ -30,17 +34,19 @@ async function checkMeal({ idcompany, idevent, idacreditation, mealType, idaccou
   if (existing.length) {
     throw new AppError(
       409,
-      `Ya se registró ${mealType} el día de hoy a las ${new Date(existing[0].scanned_at).toLocaleTimeString()}`
+      `Ya se registró ${mealType} el día de hoy a las ${new Date(existing[0].scanned_at).toLocaleTimeString("es-PE", { timeZone: "America/Lima" })}`
     );
   }
 
+  const scannedAt = nowPeru(); // 👈 "2026-07-09 13:20:05"
+
   await pool.query(
-    `INSERT INTO meal_records (idcompany, idevent, idacreditation, meal_type, meal_date, idaccount)
-     VALUES (?, ?, ?, ?, CURDATE(), ?)`,
-    [idcompany, idevent, idacreditation, mealType, idaccount]
+    `INSERT INTO meal_records (idcompany, idevent, idacreditation, meal_type, meal_date, scanned_at, idaccount)
+     VALUES (?, ?, ?, ?, CURDATE(), ?, ?)`,
+    [idcompany, idevent, idacreditation, mealType, scannedAt, idaccount]
   );
 
-  return { mealType, scannedAt: new Date() };
+  return { mealType, scannedAt };
 }
 
 module.exports = { getTodayStatus, checkMeal };

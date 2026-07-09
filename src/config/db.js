@@ -11,6 +11,11 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 20,
   queueLimit: 0,
+  timezone: "-05:00",                      
+  initializationCommands: [
+    "SET time_zone = '-05:00'",            
+  ],
 });
+
 
 module.exports = pool;
