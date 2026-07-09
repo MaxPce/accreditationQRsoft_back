@@ -14,8 +14,15 @@ const villageRoutes = require("./modules/village/village.routes");
 
 const app = express();
 
-app.use(helmet());
-app.use(cors());
+app.use(helmet({
+  crossOriginResourcePolicy: false, 
+}));
+
+app.use(cors({
+  origin: true,        
+  credentials: true,   
+}));
+
 app.use(morgan("dev"));
 app.use(express.json());
 
@@ -25,7 +32,6 @@ app.use("/api/events", eventsRoutes);
 app.use("/api/accreditations", accreditationsRoutes);
 app.use("/api/meals", mealsRoutes);
 app.use("/api/village", villageRoutes);
-
 
 app.use((req, res) => res.status(404).json({ ok: false, message: "Ruta no encontrada" }));
 app.use(errorMiddleware);
