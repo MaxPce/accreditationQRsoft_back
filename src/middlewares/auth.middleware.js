@@ -1,26 +1,36 @@
 // src/middlewares/auth.middleware.js
 const jwt = require("jsonwebtoken");
 const AppError = require("../utils/AppError");
-const { jwt: jwtConfig } = require("../config/env");
+const jwtConfig = require("../config/jwt");
 
-function requireAuth(requiredStage) {
+const STAGE_LEVELS = {
+  company_logged: 1,
+  event_selected: 2,
+};
+
+function requireAuth(minStage) {
   return (req, res, next) => {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith("Bearer ")) {
-      return next(new AppError(401, "Token requerido"));
-    }
+    const authHeader = req.headers.authorization;
+    if (!authHeader) throw new AppError(401, "Token no proporcionado");
+
+    const token = authHeader.replace("Bearer ", "");
+
+    let payload;
     try {
-      const payload = jwt.verify(header.split(" ")[1], jwtConfig.secret);
-      if (requiredStage && payload.stage !== requiredStage) {
-        return next(
-          new AppError(403, "Debes completar el paso previo (seleccionar evento)")
-        );
-      }
-      req.user = payload;
-      next();
-    } catch (e) {
-      return next(new AppError(401, "Token inválido o expirado"));
+      payload = jwt.verify(token, jwtConfig.secret);
+    } catch {
+      throw new AppError(401, "Token inválido o expirado");
     }
+
+    const currentLevel = STAGE_LEVELS[payload.stage] || 0;
+    const requiredLevel = STAGE_LEVELS[minStage] || 0;
+
+    if (currentLevel < requiredLevel) {
+      throw new AppError(403, "Debes completar el paso previo (seleccionar evento)");
+    }
+
+    req.user = payload;
+    next();
   };
 }
 
