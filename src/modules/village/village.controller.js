@@ -11,13 +11,12 @@ exports.lookup = asyncHandler(async (req, res) => {
   let accreditation;
 
   if (qr) {
-    const [qrDoctype, qrDocnumber] = qr.split("-", 2);
-    if (!qrDoctype || !qrDocnumber) throw new AppError(400, "Formato de QR inválido");
-    accreditation = await accreditations.findByDocument({
+    const docnumber = qr.trim();
+    if (!docnumber) throw new AppError(400, "QR inválido");
+    accreditation = await accreditations.findByDocnumber({
       idcompany,
       idevent,
-      doctype: qrDoctype.trim(),
-      docnumber: qrDocnumber.trim(),
+      docnumber,
     });
   } else {
     accreditation = await accreditations.findByDocument({

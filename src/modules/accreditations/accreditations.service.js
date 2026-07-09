@@ -70,4 +70,19 @@ async function findByDocument({ idcompany, idevent, doctype, docnumber }) {
   return mapAccreditation(rows[0]);
 }
 
-module.exports = { findByQr, findByDocument };
+async function findByDocnumber({ idcompany, idevent, docnumber }) {
+  const [rows] = await pool.query(
+    `${BASE_SELECT}
+     WHERE a.idcompany = ?
+       AND a.idevent = ?
+       AND p.docnumber = ?
+       AND a.checkdoc != 2
+       AND a.mstatus = 1
+     LIMIT 1`,
+    [idcompany, idevent, docnumber]
+  );
+  if (!rows.length) throw new AppError(404, "Acreditación no encontrada, anulada o inactiva");
+  return mapAccreditation(rows[0]);
+}
+
+module.exports = { findByQr, findByDocument, findByDocnumber };
