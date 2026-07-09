@@ -11,6 +11,7 @@ const errorMiddleware = require("./middlewares/error.middleware");
 const accreditationsRoutes = require("./modules/accreditations/accreditations.routes");
 const mealsRoutes = require("./modules/meals/meals.routes");
 const villageRoutes = require("./modules/village/village.routes");
+const mobilityRoutes = require("./modules/mobility/mobility.routes");
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/events", eventsRoutes);
 app.use("/api/accreditations", accreditationsRoutes);
 app.use("/api/meals", mealsRoutes);
 app.use("/api/village", villageRoutes);
+app.use("/api/mobility", mobilityRoutes);
 
 app.use((req, res) => res.status(404).json({ ok: false, message: "Ruta no encontrada" }));
 app.use(errorMiddleware);
