@@ -24,7 +24,7 @@ async function registerEntry({ idcompany, idevent, idacreditation, gate, idaccou
     throw new AppError(400, "Puerta inválida, use puerta1 o puerta2");
   }
 
-  const scannedAt = nowPeru(); // 👈 hora Perú explícita
+  const scannedAt = nowPeru(); 
 
   await pool.query(
     `INSERT INTO village_entries (idcompany, idevent, idacreditation, gate, scanned_at, idaccount)

@@ -38,7 +38,7 @@ async function checkMeal({ idcompany, idevent, idacreditation, mealType, idaccou
     );
   }
 
-  const scannedAt = nowPeru(); // 👈 "2026-07-09 13:20:05"
+  const scannedAt = nowPeru(); 
 
   await pool.query(
     `INSERT INTO meal_records (idcompany, idevent, idacreditation, meal_type, meal_date, scanned_at, idaccount)
