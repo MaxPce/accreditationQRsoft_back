@@ -28,9 +28,11 @@ exports.validateByQr = asyncHandler(async (req, res) => {
       idcompany, idevent,
       idacreditation: accreditation.idacreditation,
       idsport,
+      idtest: idsport_param || null,  
       idaccount,
     });
   }
+
 
   res.json({ ok: true, ...result });
 });
@@ -53,6 +55,7 @@ exports.validateByDocument = asyncHandler(async (req, res) => {
       idcompany, idevent,
       idacreditation: accreditation.idacreditation,
       idsport,
+      idtest: idsport_param || null,
       idaccount,
     });
   }

@@ -122,14 +122,14 @@ async function validateCompetition({ idcompany, idevent, accreditation, idsport,
 }
 
 
-// ── NUEVO: registra el ingreso en competition_records ──────────────────────
-async function registerEntry({ idcompany, idevent, idacreditation, idsport, idaccount }) {
+// ── registra el ingreso en competition_records ──────────────────────
+async function registerEntry({ idcompany, idevent, idacreditation, idsport, idtest, idaccount }) {
   const scannedAt = nowPeru();
   await pool.query(
     `INSERT INTO competition_records
-       (idcompany, idevent, idacreditation, idsport, scanned_at, idaccount)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [idcompany, idevent, idacreditation, Number(idsport), scannedAt, idaccount ?? null]
+       (idcompany, idevent, idacreditation, idsport, idtest, scanned_at, idaccount)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [idcompany, idevent, idacreditation, Number(idsport), idtest ?? null, scannedAt, idaccount ?? null]
   );
   return { scannedAt };
 }
@@ -140,20 +140,20 @@ async function getHistory({ idcompany, idevent, docnumber, idsport, idtest, limi
 
   if (docnumber) { conditions.push("p.docnumber LIKE ?"); params.push(`%${docnumber}%`); }
   if (idsport)   { conditions.push("cr.idsport = ?");     params.push(Number(idsport)); }
-  if (idtest)  { conditions.push("at.idtest = ?"); params.push(idtest); }
+  if (idtest)    { conditions.push("cr.idtest = ?");      params.push(idtest); }  
 
   params.push(Number(limit));
 
   const [rows] = await pool.query(
     `SELECT
-       cr.id, cr.idacreditation, cr.idsport, cr.scanned_at,
+       cr.id, cr.idacreditation, cr.idsport, cr.idtest, cr.scanned_at,
        s.name_es AS sport_name, s.acronym AS sport_acronym,
        p.firstname, p.lastname, p.surname,
        p.docnumber, p.doctype,
-       docm.name_es  AS doctype_name,
-       rolm.name_es  AS role_name,
+       docm.name_es AS doctype_name,
+       rolm.name_es AS role_name,
        a.tregister,
-       GROUP_CONCAT(DISTINCT at.idcat ORDER BY at.idcat SEPARATOR ', ') AS categories
+       sp.name AS test_name
      FROM competition_records cr
      INNER JOIN accreditation a
        ON a.idcompany = cr.idcompany AND a.idevent = cr.idevent
@@ -166,25 +166,23 @@ async function getHistory({ idcompany, idevent, docnumber, idsport, idtest, limi
        ON docm.idcompany = a.idcompany AND docm.idmaster = 4 AND docm.iddetails = p.doctype
      LEFT JOIN master_details rolm
        ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
-     LEFT JOIN accreditation_test at
-       ON at.idcompany = cr.idcompany AND at.idevent = cr.idevent
-      AND at.idacreditation = cr.idacreditation AND at.idsport = cr.idsport
-      AND at.mstatus = 1
+     LEFT JOIN sport_params sp
+       ON sp.idcompany = cr.idcompany AND sp.code = cr.idtest
      WHERE ${conditions.join(" AND ")}
-     GROUP BY cr.id
      ORDER BY cr.scanned_at DESC
      LIMIT ?`,
     params
   );
 
   return rows.map((r) => ({
-    id:          r.id,
+    id:             r.id,
     idacreditation: r.idacreditation,
-    idsport:     r.idsport,
-    sport_name:  r.sport_name,
-    sport_acronym: r.sport_acronym,
-    categories:  r.categories || "",
-    scanned_at:  r.scanned_at,
+    idsport:        r.idsport,
+    idtest:         r.idtest  ?? null,
+    sport_name:     r.sport_name,
+    sport_acronym:  r.sport_acronym,
+    test_name:      r.test_name ?? null,  // ← null = escaneado solo por deporte
+    scanned_at:     r.scanned_at,
     person: {
       fullname:    [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
       docnumber:   r.docnumber,
