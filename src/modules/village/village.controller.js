@@ -83,3 +83,15 @@ exports.listAllCountries = asyncHandler(async (req, res) => {
   const countries = await service.listAllCountries(); 
   res.json({ ok: true, countries });
 });
+
+// GET /api/village/history
+exports.getHistory = asyncHandler(async (req, res) => {
+  const { docnumber, idbuilding, gate, date, limit } = req.query;
+  const { idcompany, idevent } = req.user;
+  const records = await service.getHistory({
+    idcompany, idevent,
+    docnumber, idbuilding, gate, date,
+    limit: limit ? parseInt(limit) : 100,
+  });
+  res.json({ ok: true, records });
+});

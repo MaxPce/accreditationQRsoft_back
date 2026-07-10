@@ -103,6 +103,72 @@ async function listAllCountries() {
   return rows;
 }
 
+
+
+async function getHistory({ idcompany, idevent, docnumber, idbuilding, gate, date, limit = 100 }) {
+  const conditions = ["ve.idcompany = ?", "ve.idevent = ?"];
+  const params     = [idcompany, idevent];
+
+  if (docnumber)  { conditions.push("p.docnumber LIKE ?");  params.push(`%${docnumber}%`); }
+  if (idbuilding === "__null__") {
+      conditions.push("ve.idbuilding IS NULL");
+    } else if (idbuilding) {
+      conditions.push("ve.idbuilding = ?");
+      params.push(idbuilding);
+    }
+
+  if (gate === "__null__") {
+    conditions.push("ve.gate IS NULL");
+  } else if (gate) {
+    conditions.push("ve.gate = ?");
+    params.push(gate);
+  }
+
+  if (date)       { conditions.push("DATE(ve.scanned_at) = ?"); params.push(date); }
+
+  params.push(limit);
+
+  const [rows] = await pool.query(
+    `SELECT
+       ve.idacreditation, ve.gate, ve.idbuilding, ve.scanned_at,
+       p.firstname, p.lastname, p.surname, p.docnumber,
+       md.name_es AS building_name,
+       rolm.name_es AS role_name,
+       a.tregister,
+       c.name AS country_name
+     FROM village_entries ve
+     INNER JOIN accreditation a
+       ON a.idcompany = ve.idcompany AND a.idevent = ve.idevent
+      AND a.idacreditation = ve.idacreditation
+     INNER JOIN person p
+       ON p.idcompany = a.idcompany AND p.idperson = a.idperson
+     LEFT JOIN master_details md
+       ON md.idcompany = ve.idcompany AND md.idmaster = 'TOWER' AND md.iddetails = ve.idbuilding
+     LEFT JOIN master_details rolm
+       ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
+     LEFT JOIN countries c
+      ON c.idcountry = p.idcountry
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY ve.scanned_at DESC
+     LIMIT ?`,
+    params
+  );
+
+  return rows.map((r) => ({
+    idacreditation: r.idacreditation,
+    gate:           r.gate,
+    idbuilding:     r.idbuilding,
+    building_name:  r.building_name ?? null,
+    scanned_at:     r.scanned_at,
+    person: {
+      fullname:  [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
+      docnumber: r.docnumber,
+    },
+    role:         { code: r.tregister, name: r.role_name || r.tregister },
+    country_name: r.country_name ?? null,
+  }));
+}
+
 module.exports = {
   getEntriesToday,
   registerEntry,
@@ -113,4 +179,5 @@ module.exports = {
   assignCountryToBuilding,
   removeCountryFromBuilding,
   listAllCountries,
+  getHistory,  
 };

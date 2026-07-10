@@ -12,5 +12,6 @@ router.get("/buildings/:idbuilding/countries",               requireAuth("event_
 router.post("/buildings/:idbuilding/countries",              requireAuth("event_selected"), controller.assignCountry);
 router.delete("/buildings/:idbuilding/countries/:idcountry", requireAuth("event_selected"), controller.removeCountry);
 router.get("/countries",                                     requireAuth("event_selected"), controller.listAllCountries);
+router.get("/history", requireAuth("event_selected"), controller.getHistory);
 
 module.exports = router;
