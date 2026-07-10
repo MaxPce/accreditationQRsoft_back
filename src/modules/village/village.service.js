@@ -20,16 +20,18 @@ async function getEntriesToday({ idcompany, idevent, idacreditation }) {
 }
 
 async function registerEntry({ idcompany, idevent, idacreditation, gate, idbuilding, idaccount }) {
-  if (!VALID_GATES.includes(gate)) {
+  // gate puede ser null cuando el registro es por edificio (sin puerta)
+  if (gate !== null && gate !== undefined && !VALID_GATES.includes(gate)) {
     throw new AppError(400, "Puerta inválida, use puerta1 o puerta2");
   }
+
   const scannedAt = nowPeru();
   await pool.query(
     `INSERT INTO village_entries (idcompany, idevent, idacreditation, gate, idbuilding, scanned_at, idaccount)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [idcompany, idevent, idacreditation, gate, idbuilding ?? null, scannedAt, idaccount ?? null]
+    [idcompany, idevent, idacreditation, gate ?? null, idbuilding ?? null, scannedAt, idaccount ?? null]
   );
-  return { gate, idbuilding: idbuilding ?? null, scannedAt };
+  return { gate: gate ?? null, idbuilding: idbuilding ?? null, scannedAt };
 }
 
 // Obtener el idcountry del atleta acreditado (para validación de edificio)
