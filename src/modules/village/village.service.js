@@ -8,13 +8,25 @@ function nowPeru() {
   return new Date().toLocaleString("sv-SE", { timeZone: "America/Lima" }).replace("T", " ");
 }
 
-async function getEntriesToday({ idcompany, idevent, idacreditation }) {
+async function getEntriesToday({ idcompany, idevent, idacreditation, idbuilding = null }) {
+  const conditions = [
+    "idcompany = ?",
+    "idevent = ?",
+    "idacreditation = ?",
+    "DATE(scanned_at) = CURDATE()",
+  ];
+  const params = [idcompany, idevent, idacreditation];
+
+  if (idbuilding !== null && idbuilding !== undefined) {
+    conditions.push("idbuilding = ?");
+    params.push(idbuilding);
+  }
+
   const [rows] = await pool.query(
     `SELECT gate, idbuilding, scanned_at FROM village_entries
-     WHERE idcompany = ? AND idevent = ? AND idacreditation = ?
-       AND DATE(scanned_at) = CURDATE()
+     WHERE ${conditions.join(" AND ")}
      ORDER BY scanned_at DESC`,
-    [idcompany, idevent, idacreditation]
+    params
   );
   return rows;
 }

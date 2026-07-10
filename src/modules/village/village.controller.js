@@ -6,7 +6,7 @@ const service        = require("./village.service");
 
 // GET /api/village/lookup?qr=xxx  |  ?doctype=1&docnumber=xxx
 exports.lookup = asyncHandler(async (req, res) => {
-  const { qr, doctype, docnumber } = req.query;
+  const { qr, doctype, docnumber, idbuilding } = req.query; // ← agrega idbuilding
   const { idcompany, idevent } = req.user;
 
   const accreditation = qr
@@ -14,11 +14,15 @@ exports.lookup = asyncHandler(async (req, res) => {
     : await accreditations.findByDocument({ idcompany, idevent, doctype, docnumber });
 
   const entriesToday = await service.getEntriesToday({
-    idcompany, idevent, idacreditation: accreditation.idacreditation,
+    idcompany,
+    idevent,
+    idacreditation: accreditation.idacreditation,
+    idbuilding: idbuilding ?? null, // ← filtra por edificio si viene
   });
 
   res.json({ ok: true, accreditation, entriesToday });
 });
+
 
 // POST /api/village/register  body: { idacreditation, gate, idbuilding? }
 exports.registerEntry = asyncHandler(async (req, res) => {

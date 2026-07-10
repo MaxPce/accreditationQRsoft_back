@@ -4,7 +4,7 @@ const AppError = require("../../utils/AppError");
 
 const BASE_SELECT = `
   SELECT a.idacreditation, a.idcompany, a.idevent, a.idsport, a.idinstitution,
-         a.tregister, a.checkdoc,
+         a.tregister, a.checkdoc, a.hosting,
          p.idperson, p.idcountry, p.doctype, p.docnumber,
          p.firstname, p.lastname, p.surname,
          docm.name_es AS doctype_name,
@@ -19,27 +19,30 @@ const BASE_SELECT = `
     ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
 `;
 
+
 function mapAccreditation(row) {
   return {
     idacreditation: row.idacreditation,
-    idevent: row.idevent,
-    idsport: row.idsport,
-    idinstitution: row.idinstitution,
+    idevent:        row.idevent,
+    idsport:        row.idsport,
+    idinstitution:  row.idinstitution,
+    hosting:        row.hosting === 1 || row.hosting === true, // boolean
     role: {
-      code: row.tregister,
-      name: row.role_name || row.tregister,
+      code:  row.tregister,
+      name:  row.role_name || row.tregister,
       color: row.role_color || null,
     },
     person: {
-      idperson: row.idperson,
-      fullname: [row.firstname, row.lastname, row.surname].filter(Boolean).join(" "),
-      idcountry: row.idcountry,
-      doctype: row.doctype,
+      idperson:    row.idperson,
+      fullname:    [row.firstname, row.lastname, row.surname].filter(Boolean).join(" "),
+      idcountry:   row.idcountry,
+      doctype:     row.doctype,
       doctypeName: row.doctype_name,
-      docnumber: row.docnumber,
+      docnumber:   row.docnumber,
     },
   };
 }
+
 
 async function findByQr({ idcompany, idevent, idacreditation }) {
   const [rows] = await pool.query(
