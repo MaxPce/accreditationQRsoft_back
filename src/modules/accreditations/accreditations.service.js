@@ -8,7 +8,8 @@ const BASE_SELECT = `
          p.idperson, p.idcountry, p.doctype, p.docnumber,
          p.firstname, p.lastname, p.surname,
          docm.name_es AS doctype_name,
-         rolm.name_es AS role_name
+         rolm.name_es AS role_name,
+         rolm.param2  AS role_color
   FROM accreditation a
   INNER JOIN person p
     ON p.idcompany = a.idcompany AND p.idperson = a.idperson
@@ -27,6 +28,7 @@ function mapAccreditation(row) {
     role: {
       code: row.tregister,
       name: row.role_name || row.tregister,
+      color: row.role_color || null,
     },
     person: {
       idperson: row.idperson,
