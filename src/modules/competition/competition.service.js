@@ -70,19 +70,28 @@ async function findByDocument({ idcompany, idevent, doctype, docnumber }) {
   return mapAccreditation(rows[0]);
 }
 
-async function validateCompetition({ idcompany, idevent, accreditation, idsport }) {
+async function validateCompetition({ idcompany, idevent, accreditation, idsport, idsport_param }) {
   const idspNum = Number(idsport);
 
-  const [tests] = await pool.query(
-    `SELECT at.idtest, sp.name AS test_name, at.idniv, at.idcat
-     FROM accreditation_test at
-     LEFT JOIN sport_params sp
-       ON sp.idcompany = at.idcompany AND sp.code = at.idtest
-     WHERE at.idcompany = ? AND at.idevent = ?
-       AND at.idacreditation = ? AND at.idsport = ?
-       AND at.mstatus = 1`,
-    [idcompany, idevent, accreditation.idacreditation, idspNum]
-  );
+  // Construir query base de pruebas
+  let testsQuery = `
+    SELECT at.idtest, sp.name AS test_name, at.idniv, at.idcat
+    FROM accreditation_test at
+    LEFT JOIN sport_params sp
+      ON sp.idcompany = at.idcompany AND sp.code = at.idtest
+    WHERE at.idcompany = ? AND at.idevent = ?
+      AND at.idacreditation = ? AND at.idsport = ?
+      AND at.mstatus = 1
+  `;
+  const testsParams = [idcompany, idevent, accreditation.idacreditation, idspNum];
+
+  // Si viene idsport_param, filtrar por prueba específica (idtest = code de sport_params)
+  if (idsport_param) {
+    testsQuery += ` AND at.idtest = ?`;
+    testsParams.push(String(idsport_param));
+  }
+
+  const [tests] = await pool.query(testsQuery, testsParams);
 
   const sportMatch = accreditation.idsport === idspNum;
   const hasTests   = tests.length > 0;
@@ -90,9 +99,13 @@ async function validateCompetition({ idcompany, idevent, accreditation, idsport 
 
   let reason = null;
   if (!authorized) {
-    reason = !sportMatch
-      ? "El atleta no pertenece a este deporte"
-      : "El atleta no tiene pruebas inscritas en este deporte";
+    if (!sportMatch) {
+      reason = "El atleta no pertenece a este deporte";
+    } else if (idsport_param) {
+      reason = "El atleta no está inscrito en esta prueba/categoría";
+    } else {
+      reason = "El atleta no tiene pruebas inscritas en este deporte";
+    }
   }
 
   return {
@@ -107,6 +120,7 @@ async function validateCompetition({ idcompany, idevent, accreditation, idsport 
     reason,
   };
 }
+
 
 // ── NUEVO: registra el ingreso en competition_records ──────────────────────
 async function registerEntry({ idcompany, idevent, idacreditation, idsport, idaccount }) {

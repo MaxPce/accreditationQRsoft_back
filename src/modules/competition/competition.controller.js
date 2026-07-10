@@ -10,17 +10,19 @@ exports.listSports = asyncHandler(async (req, res) => {
   res.json({ ok: true, sports });
 });
 
-// GET /api/competition/validate?qr=XXXXX&idsport=9
+// GET /api/competition/validate?qr=XXXXX&idsport=9&idsport_param=2PB0016
 exports.validateByQr = asyncHandler(async (req, res) => {
-  const { qr, idsport } = req.query;
+  const { qr, idsport, idsport_param } = req.query;  
   const { idcompany, idevent, idaccount } = req.user;
   if (!qr)      throw new AppError(400, "Debe enviar el parámetro qr");
   if (!idsport) throw new AppError(400, "Debe enviar el parámetro idsport");
 
   const accreditation = await service.findByDocnumber({ idcompany, idevent, docnumber: qr.trim() });
-  const result = await service.validateCompetition({ idcompany, idevent, accreditation, idsport });
+  const result = await service.validateCompetition({
+    idcompany, idevent, accreditation, idsport,
+    idsport_param: idsport_param || null,   
+  });
 
-  // ── Registrar ingreso automáticamente si está autorizado ──
   if (result.authorized) {
     await service.registerEntry({
       idcompany, idevent,
@@ -33,17 +35,19 @@ exports.validateByQr = asyncHandler(async (req, res) => {
   res.json({ ok: true, ...result });
 });
 
-// GET /api/competition/validate-doc?doctype=1&docnumber=XXXXX&idsport=9
+// GET /api/competition/validate-doc?doctype=1&docnumber=XXXXX&idsport=9&idsport_param=2PB0016
 exports.validateByDocument = asyncHandler(async (req, res) => {
-  const { doctype, docnumber, idsport } = req.query;
+  const { doctype, docnumber, idsport, idsport_param } = req.query;  
   const { idcompany, idevent, idaccount } = req.user;
   if (!doctype || !docnumber) throw new AppError(400, "Debe enviar doctype y docnumber");
   if (!idsport)               throw new AppError(400, "Debe enviar el parámetro idsport");
 
   const accreditation = await service.findByDocument({ idcompany, idevent, doctype, docnumber });
-  const result = await service.validateCompetition({ idcompany, idevent, accreditation, idsport });
+  const result = await service.validateCompetition({
+    idcompany, idevent, accreditation, idsport,
+    idsport_param: idsport_param || null,   // <-- pasar opcionalmente
+  });
 
-  // ── Registrar ingreso automáticamente si está autorizado ──
   if (result.authorized) {
     await service.registerEntry({
       idcompany, idevent,
