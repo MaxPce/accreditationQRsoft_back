@@ -18,6 +18,12 @@ const BASE_SELECT = `
     ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
 `;
 
+function nowPeru() {
+  return new Date()
+    .toLocaleString("sv-SE", { timeZone: "America/Lima" })
+    .replace("T", " ");
+}
+
 function mapAccreditation(row) {
   return {
     idacreditation: row.idacreditation,
@@ -39,7 +45,6 @@ function mapAccreditation(row) {
   };
 }
 
-// Busca por docnumber (el QR contiene el número de documento, igual que village)
 async function findByDocnumber({ idcompany, idevent, docnumber }) {
   const [rows] = await pool.query(
     `${BASE_SELECT}
@@ -52,7 +57,6 @@ async function findByDocnumber({ idcompany, idevent, docnumber }) {
   return mapAccreditation(rows[0]);
 }
 
-// Busca por doctype + docnumber (búsqueda manual)
 async function findByDocument({ idcompany, idevent, doctype, docnumber }) {
   const [rows] = await pool.query(
     `${BASE_SELECT}
@@ -66,7 +70,6 @@ async function findByDocument({ idcompany, idevent, doctype, docnumber }) {
   return mapAccreditation(rows[0]);
 }
 
-// Valida si el atleta tiene pruebas en accreditation_test para el idsport seleccionado
 async function validateCompetition({ idcompany, idevent, accreditation, idsport }) {
   const idspNum = Number(idsport);
 
@@ -81,9 +84,9 @@ async function validateCompetition({ idcompany, idevent, accreditation, idsport 
     [idcompany, idevent, accreditation.idacreditation, idspNum]
   );
 
-  const sportMatch  = accreditation.idsport === idspNum;
-  const hasTests    = tests.length > 0;
-  const authorized  = sportMatch && hasTests;
+  const sportMatch = accreditation.idsport === idspNum;
+  const hasTests   = tests.length > 0;
+  const authorized = sportMatch && hasTests;
 
   let reason = null;
   if (!authorized) {
@@ -105,7 +108,78 @@ async function validateCompetition({ idcompany, idevent, accreditation, idsport 
   };
 }
 
-// Lista deportes activos de la empresa (sin event_sport)
+// ── NUEVO: registra el ingreso en competition_records ──────────────────────
+async function registerEntry({ idcompany, idevent, idacreditation, idsport, idaccount }) {
+  const scannedAt = nowPeru();
+  await pool.query(
+    `INSERT INTO competition_records
+       (idcompany, idevent, idacreditation, idsport, scanned_at, idaccount)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [idcompany, idevent, idacreditation, Number(idsport), scannedAt, idaccount ?? null]
+  );
+  return { scannedAt };
+}
+
+async function getHistory({ idcompany, idevent, docnumber, idsport, idtest, limit = 100 }) {
+  const conditions = ["cr.idcompany = ?", "cr.idevent = ?"];
+  const params     = [idcompany, idevent];
+
+  if (docnumber) { conditions.push("p.docnumber LIKE ?"); params.push(`%${docnumber}%`); }
+  if (idsport)   { conditions.push("cr.idsport = ?");     params.push(Number(idsport)); }
+  if (idtest)  { conditions.push("at.idtest = ?"); params.push(idtest); }
+
+  params.push(Number(limit));
+
+  const [rows] = await pool.query(
+    `SELECT
+       cr.id, cr.idacreditation, cr.idsport, cr.scanned_at,
+       s.name_es AS sport_name, s.acronym AS sport_acronym,
+       p.firstname, p.lastname, p.surname,
+       p.docnumber, p.doctype,
+       docm.name_es  AS doctype_name,
+       rolm.name_es  AS role_name,
+       a.tregister,
+       GROUP_CONCAT(DISTINCT at.idcat ORDER BY at.idcat SEPARATOR ', ') AS categories
+     FROM competition_records cr
+     INNER JOIN accreditation a
+       ON a.idcompany = cr.idcompany AND a.idevent = cr.idevent
+      AND a.idacreditation = cr.idacreditation
+     INNER JOIN person p
+       ON p.idcompany = a.idcompany AND p.idperson = a.idperson
+     INNER JOIN sport s
+       ON s.idcompany = cr.idcompany AND s.idsport = cr.idsport
+     LEFT JOIN master_details docm
+       ON docm.idcompany = a.idcompany AND docm.idmaster = 4 AND docm.iddetails = p.doctype
+     LEFT JOIN master_details rolm
+       ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
+     LEFT JOIN accreditation_test at
+       ON at.idcompany = cr.idcompany AND at.idevent = cr.idevent
+      AND at.idacreditation = cr.idacreditation AND at.idsport = cr.idsport
+      AND at.mstatus = 1
+     WHERE ${conditions.join(" AND ")}
+     GROUP BY cr.id
+     ORDER BY cr.scanned_at DESC
+     LIMIT ?`,
+    params
+  );
+
+  return rows.map((r) => ({
+    id:          r.id,
+    idacreditation: r.idacreditation,
+    idsport:     r.idsport,
+    sport_name:  r.sport_name,
+    sport_acronym: r.sport_acronym,
+    categories:  r.categories || "",
+    scanned_at:  r.scanned_at,
+    person: {
+      fullname:    [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
+      docnumber:   r.docnumber,
+      doctypeName: r.doctype_name,
+    },
+    role: { code: r.tregister, name: r.role_name || r.tregister },
+  }));
+}
+
 async function listSports({ idcompany, idevent }) {
   const [rows] = await pool.query(
     `SELECT DISTINCT s.idsport, s.name_es, s.acronym
@@ -123,5 +197,27 @@ async function listSports({ idcompany, idevent }) {
   return rows;
 }
 
+async function listTestsBySport({ idcompany, idevent, idsport }) {
+  const [rows] = await pool.query(
+    `SELECT DISTINCT sp.code, sp.name
+     FROM accreditation_test at
+     INNER JOIN sport_params sp
+       ON sp.idcompany = at.idcompany AND sp.code = at.idtest
+     WHERE at.idcompany = ? AND at.idevent = ? AND at.idsport = ?
+       AND at.mstatus = 1
+     ORDER BY sp.name ASC`,
+    [idcompany, idevent, Number(idsport)]
+  );
+  return rows; 
+}
 
-module.exports = { findByDocnumber, findByDocument, validateCompetition, listSports };
+
+module.exports = {
+  findByDocnumber,
+  findByDocument,
+  validateCompetition,
+  registerEntry,
+  getHistory,
+  listSports,
+  listTestsBySport,
+};
