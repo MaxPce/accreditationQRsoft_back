@@ -69,3 +69,19 @@ exports.history = asyncHandler(async (req, res) => {
   });
   res.json({ ok: true, records });
 });
+
+exports.softDelete = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { idcompany, idevent, idaccount } = req.user;
+
+  if (!id) throw new AppError(400, "id es requerido");
+
+  const result = await service.softDeleteMeal({
+    id: Number(id),
+    idcompany,
+    idevent,
+    idaccount,
+  });
+
+  res.json({ ok: true, ...result });
+});

@@ -17,6 +17,7 @@ async function getLogsToday({ idcompany, idevent, idacreditation }) {
      FROM mobility_logs
      WHERE idcompany = ? AND idevent = ? AND idacreditation = ?
        AND DATE(scanned_at) = CURDATE()
+       AND deleted_at IS NULL
      ORDER BY scanned_at DESC`,
     [idcompany, idevent, idacreditation]
   );
@@ -31,9 +32,6 @@ async function registerLog({ idcompany, idevent, idacreditation, location, event
     throw new AppError(400, "Tipo de evento inválido. Use: salida o llegada");
   }
 
-  // Validar permiso P5 - Transporte (opcional, si quieres verificarlo)
-  // puedes consultarlo de accreditation vs master_details donde iddetails='P5'
-
   const scannedAt = nowPeru();
 
   await pool.query(
@@ -46,7 +44,7 @@ async function registerLog({ idcompany, idevent, idacreditation, location, event
 }
 
 async function getHistory({ idcompany, idevent, docnumber, location, date, limit = 100 }) {
-  const conditions = ["ml.idcompany = ?", "ml.idevent = ?"];
+  const conditions = ["ml.idcompany = ?", "ml.idevent = ?", "ml.deleted_at IS NULL"];
   const params     = [idcompany, idevent];
 
   if (docnumber) { conditions.push("p.docnumber LIKE ?");   params.push(`%${docnumber}%`); }
@@ -57,7 +55,7 @@ async function getHistory({ idcompany, idevent, docnumber, location, date, limit
 
   const [rows] = await pool.query(
     `SELECT
-       ml.idacreditation, ml.location, ml.event_type, ml.scanned_at,
+       ml.id, ml.idacreditation, ml.location, ml.event_type, ml.scanned_at,
        p.firstname, p.lastname, p.surname,
        p.docnumber, p.doctype,
        docm.name_es AS doctype_name,
@@ -80,6 +78,7 @@ async function getHistory({ idcompany, idevent, docnumber, location, date, limit
   );
 
   return rows.map((r) => ({
+    id:             r.id,
     idacreditation: r.idacreditation,
     location:       r.location,
     event_type:     r.event_type,
@@ -93,4 +92,16 @@ async function getHistory({ idcompany, idevent, docnumber, location, date, limit
   }));
 }
 
-module.exports = { getLogsToday, registerLog, getHistory };
+async function softDeleteLog({ id, idcompany, idevent, idaccount }) {
+  const deletedAt = nowPeru();
+  const [result] = await pool.query(
+    `UPDATE mobility_logs
+     SET deleted_at = ?, deleted_by = ?
+     WHERE id = ? AND idcompany = ? AND idevent = ? AND deleted_at IS NULL`,
+    [deletedAt, String(idaccount), id, idcompany, idevent]
+  );
+  if (result.affectedRows === 0) throw new AppError(404, "Registro no encontrado o ya eliminado");
+  return { deletedAt };
+}
+
+module.exports = { getLogsToday, registerLog, getHistory, softDeleteLog };
