@@ -20,9 +20,18 @@ const BASE_SELECT = `
     ON docm.idcompany = a.idcompany AND docm.idmaster = 4 AND docm.iddetails = p.doctype
   LEFT JOIN master_details rolm
     ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
-  LEFT JOIN photos ph
-    ON ph.idcompany = a.idcompany AND ph.idphoto = a.idphoto AND ph.mstatus = 1
+  LEFT JOIN (
+    SELECT idcompany, idperson, ruta,
+           ROW_NUMBER() OVER (
+             PARTITION BY idcompany, idperson
+             ORDER BY updated_at DESC, idphoto DESC
+           ) AS rn
+    FROM photos
+    WHERE mstatus = 1
+  ) ph
+    ON ph.idcompany = a.idcompany AND ph.idperson = p.idperson AND ph.rn = 1
 `;
+
 
 function mapAccreditation(row) {
   return {

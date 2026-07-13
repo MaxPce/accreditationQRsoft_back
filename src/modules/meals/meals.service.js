@@ -65,20 +65,32 @@ async function getHistory({ idcompany, idevent, docnumber, meal_type, date, limi
        p.docnumber, p.doctype,
        docm.name_es AS doctype_name,
        rolm.name_es AS role_name,
-       a.tregister
+       a.tregister,
+       ph.ruta AS photo_ruta
      FROM meal_records mr
      INNER JOIN accreditation a ON a.idcompany = mr.idcompany AND a.idevent = mr.idevent AND a.idacreditation = mr.idacreditation
      INNER JOIN person p ON p.idcompany = a.idcompany AND p.idperson = a.idperson
      LEFT JOIN master_details docm ON docm.idcompany = a.idcompany AND docm.idmaster = 4 AND docm.iddetails = p.doctype
      LEFT JOIN master_details rolm ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
+     LEFT JOIN (
+       SELECT idcompany, idperson, ruta,
+              ROW_NUMBER() OVER (
+                PARTITION BY idcompany, idperson
+                ORDER BY updated_at DESC, idphoto DESC
+              ) AS rn
+       FROM photos
+       WHERE mstatus = 1
+     ) ph ON ph.idcompany = a.idcompany AND ph.idperson = p.idperson AND ph.rn = 1
      WHERE ${conditions.join(" AND ")}
      ORDER BY mr.scanned_at DESC
      LIMIT ?`,
     params
   );
 
+  const PHOTOS_BASE_URL = process.env.PHOTOS_BASE_URL || "https://master.hayllis.com/writable/uploads/";
+
   return rows.map((r) => ({
-    id:             r.id,           
+    id:             r.id,
     idacreditation: r.idacreditation,
     meal_type:      r.meal_type,
     meal_date:      r.meal_date,
@@ -87,6 +99,7 @@ async function getHistory({ idcompany, idevent, docnumber, meal_type, date, limi
       fullname:    [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
       docnumber:   r.docnumber,
       doctypeName: r.doctype_name,
+      photoUrl:    r.photo_ruta ? `${PHOTOS_BASE_URL}${r.photo_ruta}` : null,
     },
     role: { code: r.tregister, name: r.role_name || r.tregister },
   }));

@@ -73,7 +73,6 @@ async function findByDocument({ idcompany, idevent, doctype, docnumber }) {
 async function validateCompetition({ idcompany, idevent, accreditation, idsport, idsport_param }) {
   const idspNum = Number(idsport);
 
-  // Construir query base de pruebas
   let testsQuery = `
     SELECT at.idtest, sp.name AS test_name, at.idniv, at.idcat
     FROM accreditation_test at
@@ -85,7 +84,6 @@ async function validateCompetition({ idcompany, idevent, accreditation, idsport,
   `;
   const testsParams = [idcompany, idevent, accreditation.idacreditation, idspNum];
 
-  // Si viene idsport_param, filtrar por prueba específica (idtest = code de sport_params)
   if (idsport_param) {
     testsQuery += ` AND at.idtest = ?`;
     testsParams.push(String(idsport_param));
@@ -121,8 +119,6 @@ async function validateCompetition({ idcompany, idevent, accreditation, idsport,
   };
 }
 
-
-// ── registra el ingreso en competition_records ──────────────────────
 async function registerEntry({ idcompany, idevent, idacreditation, idsport, idtest, idaccount }) {
   const scannedAt = nowPeru();
   await pool.query(
@@ -140,7 +136,7 @@ async function getHistory({ idcompany, idevent, docnumber, idsport, idtest, limi
 
   if (docnumber) { conditions.push("p.docnumber LIKE ?"); params.push(`%${docnumber}%`); }
   if (idsport)   { conditions.push("cr.idsport = ?");     params.push(Number(idsport)); }
-  if (idtest)    { conditions.push("cr.idtest = ?");      params.push(idtest); }  
+  if (idtest)    { conditions.push("cr.idtest = ?");      params.push(idtest); }
 
   params.push(Number(limit));
 
@@ -153,7 +149,8 @@ async function getHistory({ idcompany, idevent, docnumber, idsport, idtest, limi
        docm.name_es AS doctype_name,
        rolm.name_es AS role_name,
        a.tregister,
-       sp.name AS test_name
+       sp.name AS test_name,
+       ph.ruta AS photo_ruta
      FROM competition_records cr
      INNER JOIN accreditation a
        ON a.idcompany = cr.idcompany AND a.idevent = cr.idevent
@@ -168,11 +165,22 @@ async function getHistory({ idcompany, idevent, docnumber, idsport, idtest, limi
        ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
      LEFT JOIN sport_params sp
        ON sp.idcompany = cr.idcompany AND sp.code = cr.idtest
+     LEFT JOIN (
+       SELECT idcompany, idperson, ruta,
+              ROW_NUMBER() OVER (
+                PARTITION BY idcompany, idperson
+                ORDER BY updated_at DESC, idphoto DESC
+              ) AS rn
+       FROM photos
+       WHERE mstatus = 1
+     ) ph ON ph.idcompany = a.idcompany AND ph.idperson = p.idperson AND ph.rn = 1
      WHERE ${conditions.join(" AND ")}
      ORDER BY cr.scanned_at DESC
      LIMIT ?`,
     params
   );
+
+  const PHOTOS_BASE_URL = process.env.PHOTOS_BASE_URL || "https://master.hayllis.com/writable/uploads/";
 
   return rows.map((r) => ({
     id:             r.id,
@@ -181,12 +189,13 @@ async function getHistory({ idcompany, idevent, docnumber, idsport, idtest, limi
     idtest:         r.idtest  ?? null,
     sport_name:     r.sport_name,
     sport_acronym:  r.sport_acronym,
-    test_name:      r.test_name ?? null,  // ← null = escaneado solo por deporte
+    test_name:      r.test_name ?? null,
     scanned_at:     r.scanned_at,
     person: {
       fullname:    [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
       docnumber:   r.docnumber,
       doctypeName: r.doctype_name,
+      photoUrl:    r.photo_ruta ? `${PHOTOS_BASE_URL}${r.photo_ruta}` : null,
     },
     role: { code: r.tregister, name: r.role_name || r.tregister },
   }));
@@ -220,9 +229,8 @@ async function listTestsBySport({ idcompany, idevent, idsport }) {
      ORDER BY sp.name ASC`,
     [idcompany, idevent, Number(idsport)]
   );
-  return rows; 
+  return rows;
 }
-
 
 module.exports = {
   findByDocnumber,

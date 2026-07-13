@@ -47,8 +47,8 @@ async function getHistory({ idcompany, idevent, docnumber, location, date, limit
   const conditions = ["ml.idcompany = ?", "ml.idevent = ?", "ml.deleted_at IS NULL"];
   const params     = [idcompany, idevent];
 
-  if (docnumber) { conditions.push("p.docnumber LIKE ?");   params.push(`%${docnumber}%`); }
-  if (location)  { conditions.push("ml.location = ?");      params.push(location); }
+  if (docnumber) { conditions.push("p.docnumber LIKE ?");      params.push(`%${docnumber}%`); }
+  if (location)  { conditions.push("ml.location = ?");         params.push(location); }
   if (date)      { conditions.push("DATE(ml.scanned_at) = ?"); params.push(date); }
 
   params.push(limit);
@@ -60,7 +60,8 @@ async function getHistory({ idcompany, idevent, docnumber, location, date, limit
        p.docnumber, p.doctype,
        docm.name_es AS doctype_name,
        rolm.name_es AS role_name,
-       a.tregister
+       a.tregister,
+       ph.ruta AS photo_ruta
      FROM mobility_logs ml
      INNER JOIN accreditation a
        ON a.idcompany = ml.idcompany AND a.idevent = ml.idevent
@@ -71,11 +72,22 @@ async function getHistory({ idcompany, idevent, docnumber, location, date, limit
        ON docm.idcompany = a.idcompany AND docm.idmaster = 4 AND docm.iddetails = p.doctype
      LEFT JOIN master_details rolm
        ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
+     LEFT JOIN (
+       SELECT idcompany, idperson, ruta,
+              ROW_NUMBER() OVER (
+                PARTITION BY idcompany, idperson
+                ORDER BY updated_at DESC, idphoto DESC
+              ) AS rn
+       FROM photos
+       WHERE mstatus = 1
+     ) ph ON ph.idcompany = a.idcompany AND ph.idperson = p.idperson AND ph.rn = 1
      WHERE ${conditions.join(" AND ")}
      ORDER BY ml.scanned_at DESC
      LIMIT ?`,
     params
   );
+
+  const PHOTOS_BASE_URL = process.env.PHOTOS_BASE_URL || "https://master.hayllis.com/writable/uploads/";
 
   return rows.map((r) => ({
     id:             r.id,
@@ -87,6 +99,7 @@ async function getHistory({ idcompany, idevent, docnumber, location, date, limit
       fullname:    [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
       docnumber:   r.docnumber,
       doctypeName: r.doctype_name,
+      photoUrl:    r.photo_ruta ? `${PHOTOS_BASE_URL}${r.photo_ruta}` : null,
     },
     role: { code: r.tregister, name: r.role_name || r.tregister },
   }));

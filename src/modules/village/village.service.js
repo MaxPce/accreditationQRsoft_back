@@ -32,7 +32,6 @@ async function getEntriesToday({ idcompany, idevent, idacreditation, idbuilding 
 }
 
 async function registerEntry({ idcompany, idevent, idacreditation, gate, idbuilding, idaccount }) {
-  // gate puede ser null cuando el registro es por edificio (sin puerta)
   if (gate !== null && gate !== undefined && !VALID_GATES.includes(gate)) {
     throw new AppError(400, "Puerta inválida, use puerta1 o puerta2");
   }
@@ -46,7 +45,6 @@ async function registerEntry({ idcompany, idevent, idacreditation, gate, idbuild
   return { gate: gate ?? null, idbuilding: idbuilding ?? null, scannedAt };
 }
 
-// Obtener el idcountry del atleta acreditado (para validación de edificio)
 async function getAccreditationCountry({ idcompany, idevent, idacreditation }) {
   const [rows] = await pool.query(
     `SELECT p.idcountry
@@ -115,28 +113,24 @@ async function listAllCountries() {
   return rows;
 }
 
-
-
 async function getHistory({ idcompany, idevent, docnumber, idbuilding, gate, date, limit = 100 }) {
   const conditions = ["ve.idcompany = ?", "ve.idevent = ?"];
   const params     = [idcompany, idevent];
 
-  if (docnumber)  { conditions.push("p.docnumber LIKE ?");  params.push(`%${docnumber}%`); }
+  if (docnumber) { conditions.push("p.docnumber LIKE ?"); params.push(`%${docnumber}%`); }
   if (idbuilding === "__null__") {
-      conditions.push("ve.idbuilding IS NULL");
-    } else if (idbuilding) {
-      conditions.push("ve.idbuilding = ?");
-      params.push(idbuilding);
-    }
-
+    conditions.push("ve.idbuilding IS NULL");
+  } else if (idbuilding) {
+    conditions.push("ve.idbuilding = ?");
+    params.push(idbuilding);
+  }
   if (gate === "__null__") {
     conditions.push("ve.gate IS NULL");
   } else if (gate) {
     conditions.push("ve.gate = ?");
     params.push(gate);
   }
-
-  if (date)       { conditions.push("DATE(ve.scanned_at) = ?"); params.push(date); }
+  if (date) { conditions.push("DATE(ve.scanned_at) = ?"); params.push(date); }
 
   params.push(limit);
 
@@ -147,7 +141,8 @@ async function getHistory({ idcompany, idevent, docnumber, idbuilding, gate, dat
        md.name_es AS building_name,
        rolm.name_es AS role_name,
        a.tregister,
-       c.name AS country_name
+       c.name AS country_name,
+       ph.ruta AS photo_ruta
      FROM village_entries ve
      INNER JOIN accreditation a
        ON a.idcompany = ve.idcompany AND a.idevent = ve.idevent
@@ -158,13 +153,23 @@ async function getHistory({ idcompany, idevent, docnumber, idbuilding, gate, dat
        ON md.idcompany = ve.idcompany AND md.idmaster = 'TOWER' AND md.iddetails = ve.idbuilding
      LEFT JOIN master_details rolm
        ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
-     LEFT JOIN countries c
-      ON c.idcountry = p.idcountry
+     LEFT JOIN countries c ON c.idcountry = p.idcountry
+     LEFT JOIN (
+       SELECT idcompany, idperson, ruta,
+              ROW_NUMBER() OVER (
+                PARTITION BY idcompany, idperson
+                ORDER BY updated_at DESC, idphoto DESC
+              ) AS rn
+       FROM photos
+       WHERE mstatus = 1
+     ) ph ON ph.idcompany = a.idcompany AND ph.idperson = p.idperson AND ph.rn = 1
      WHERE ${conditions.join(" AND ")}
      ORDER BY ve.scanned_at DESC
      LIMIT ?`,
     params
   );
+
+  const PHOTOS_BASE_URL = process.env.PHOTOS_BASE_URL || "https://master.hayllis.com/writable/uploads/";
 
   return rows.map((r) => ({
     idacreditation: r.idacreditation,
@@ -175,6 +180,7 @@ async function getHistory({ idcompany, idevent, docnumber, idbuilding, gate, dat
     person: {
       fullname:  [r.firstname, r.lastname, r.surname].filter(Boolean).join(" "),
       docnumber: r.docnumber,
+      photoUrl:  r.photo_ruta ? `${PHOTOS_BASE_URL}${r.photo_ruta}` : null,
     },
     role:         { code: r.tregister, name: r.role_name || r.tregister },
     country_name: r.country_name ?? null,
@@ -191,5 +197,5 @@ module.exports = {
   assignCountryToBuilding,
   removeCountryFromBuilding,
   listAllCountries,
-  getHistory,  
+  getHistory,
 };
