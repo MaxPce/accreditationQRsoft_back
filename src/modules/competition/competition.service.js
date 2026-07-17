@@ -2,13 +2,16 @@
 const pool = require("../../config/db");
 const AppError = require("../../utils/AppError");
 
+const PHOTOS_BASE_URL = process.env.PHOTOS_BASE_URL || "https://master.hayllis.com/writable/uploads/";
+
 const BASE_SELECT = `
   SELECT a.idacreditation, a.idcompany, a.idevent, a.idsport, a.idinstitution,
          a.tregister, a.checkdoc,
          p.idperson, p.idcountry, p.doctype, p.docnumber,
          p.firstname, p.lastname, p.surname,
          docm.name_es AS doctype_name,
-         rolm.name_es AS role_name
+         rolm.name_es AS role_name,
+         ph.ruta AS photo_ruta
   FROM accreditation a
   INNER JOIN person p
     ON p.idcompany = a.idcompany AND p.idperson = a.idperson
@@ -16,6 +19,15 @@ const BASE_SELECT = `
     ON docm.idcompany = a.idcompany AND docm.idmaster = 4 AND docm.iddetails = p.doctype
   LEFT JOIN master_details rolm
     ON rolm.idcompany = a.idcompany AND rolm.idmaster = 19 AND rolm.iddetails = a.tregister
+  LEFT JOIN (
+    SELECT idcompany, idperson, ruta,
+           ROW_NUMBER() OVER (
+             PARTITION BY idcompany, idperson
+             ORDER BY updated_at DESC, idphoto DESC
+           ) AS rn
+    FROM photos
+    WHERE mstatus = 1
+  ) ph ON ph.idcompany = a.idcompany AND ph.idperson = p.idperson AND ph.rn = 1
 `;
 
 function nowPeru() {
@@ -41,6 +53,7 @@ function mapAccreditation(row) {
       doctype:     row.doctype,
       doctypeName: row.doctype_name,
       docnumber:   row.docnumber,
+      photoUrl:    row.photo_ruta ? `${PHOTOS_BASE_URL}${row.photo_ruta}` : null,
     },
   };
 }
@@ -180,8 +193,7 @@ async function getHistory({ idcompany, idevent, docnumber, idsport, idtest, limi
     params
   );
 
-  const PHOTOS_BASE_URL = process.env.PHOTOS_BASE_URL || "https://master.hayllis.com/writable/uploads/";
-
+  
   return rows.map((r) => ({
     id:             r.id,
     idacreditation: r.idacreditation,

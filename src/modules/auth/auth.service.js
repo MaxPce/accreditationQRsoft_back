@@ -18,10 +18,6 @@ async function login({ idcompany, username, password }) {
   if (!rows.length) throw new AppError(404, "Usuario no encontrado");
   const account = rows[0];
 
-  if (account.type_account !== "G") {
-    throw new AppError(403, "Este acceso es solo para personal staff");
-  }
-
   if (Number(account.accstatus) !== 1) {
     throw new AppError(403, "Cuenta deshabilitada, contacte al administrador");
   }
