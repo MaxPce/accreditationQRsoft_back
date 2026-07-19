@@ -11,15 +11,21 @@ function nowPeru() {
     .replace("T", " ");
 }
 
+function todayPeru() {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "America/Lima" });
+}
+
 async function getLogsToday({ idcompany, idevent, idacreditation }) {
+  const today = todayPeru(); 
+
   const [rows] = await pool.query(
     `SELECT location, event_type, scanned_at
      FROM mobility_logs
      WHERE idcompany = ? AND idevent = ? AND idacreditation = ?
-       AND DATE(scanned_at) = CURDATE()
+       AND DATE(scanned_at) = ?        -- ✅ era CURDATE()
        AND deleted_at IS NULL
      ORDER BY scanned_at DESC`,
-    [idcompany, idevent, idacreditation]
+    [idcompany, idevent, idacreditation, today] 
   );
   return rows;
 }

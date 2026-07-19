@@ -13,7 +13,7 @@ const mealsRoutes = require("./modules/meals/meals.routes");
 const villageRoutes = require("./modules/village/village.routes");
 const mobilityRoutes = require("./modules/mobility/mobility.routes");
 const competitionRoutes = require("./modules/competition/competition.routes");
-
+const statsRoutes = require("./modules/stats/stats.routes");
 
 const app = express();
 
@@ -37,6 +37,8 @@ app.use("/api/meals", mealsRoutes);
 app.use("/api/village", villageRoutes);
 app.use("/api/mobility", mobilityRoutes);
 app.use("/api/competition", competitionRoutes);
+app.use("/api/stats", statsRoutes);
+
 
 app.use((req, res) => res.status(404).json({ ok: false, message: "Ruta no encontrada v2" }));
 app.use(errorMiddleware);

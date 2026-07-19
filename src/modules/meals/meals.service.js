@@ -6,29 +6,40 @@ function nowPeru() {
   return new Date().toLocaleString("sv-SE", { timeZone: "America/Lima" }).replace("T", " ");
 }
 
+function todayPeru() {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "America/Lima" });
+  // Devuelve "2026-07-19" siempre en hora Lima, sin depender de MySQL
+}
+
+
 async function getTodayStatus({ idcompany, idevent, idacreditation }) {
+  const today = todayPeru(); // ✅ AGREGAR
+
   const [rows] = await pool.query(
     `SELECT meal_type, scanned_at FROM meal_records
      WHERE idcompany = ? AND idevent = ? AND idacreditation = ?
-       AND meal_date = CURDATE()
+       AND meal_date = ?              -- ✅ era CURDATE()
        AND deleted_at IS NULL`,
-    [idcompany, idevent, idacreditation]
+    [idcompany, idevent, idacreditation, today] // ✅ agregar today
   );
   const taken = {};
   rows.forEach((r) => (taken[r.meal_type] = r.scanned_at));
   return taken;
 }
 
+
 async function checkMeal({ idcompany, idevent, idacreditation, mealType, idaccount }) {
   const validTypes = ["desayuno", "almuerzo", "cena"];
   if (!validTypes.includes(mealType)) throw new AppError(400, "Tipo de comida inválido");
 
+  const today = todayPeru(); // ✅ AGREGAR
+
   const [existing] = await pool.query(
     `SELECT id, scanned_at FROM meal_records
      WHERE idcompany = ? AND idevent = ? AND idacreditation = ?
-       AND meal_type = ? AND meal_date = CURDATE()
+       AND meal_type = ? AND meal_date = ?   -- ✅ era CURDATE()
        AND deleted_at IS NULL`,
-    [idcompany, idevent, idacreditation, mealType]
+    [idcompany, idevent, idacreditation, mealType, today] // ✅ agregar today
   );
 
   if (existing.length) {
@@ -41,12 +52,13 @@ async function checkMeal({ idcompany, idevent, idacreditation, mealType, idaccou
   const scannedAt = nowPeru();
   await pool.query(
     `INSERT INTO meal_records (idcompany, idevent, idacreditation, meal_type, meal_date, scanned_at, idaccount)
-     VALUES (?, ?, ?, ?, CURDATE(), ?, ?)`,
-    [idcompany, idevent, idacreditation, mealType, scannedAt, idaccount]
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,  // ✅ era CURDATE(), ahora es ?
+    [idcompany, idevent, idacreditation, mealType, today, scannedAt, idaccount] // ✅ agregar today
   );
 
   return { mealType, scannedAt };
 }
+
 
 async function getHistory({ idcompany, idevent, docnumber, meal_type, date, limit = 100 }) {
   const conditions = ["mr.idcompany = ?", "mr.idevent = ?", "mr.deleted_at IS NULL"];
